@@ -2,6 +2,84 @@
 <html lang="en">
   <head>
     <title>Perfect Fragrant Locust</title>
+    <script type = "module" src='https://cdn.plot.ly/plotly-2.18.2.min.js'></script>
+    <script type = "module" src='scripts/CSPL.js'></script>
+    <script type = "module" src='scripts/flattened_words.js'></script>
+    <script type = "module" src='scripts/flattened_dictionary.js'></script>
+    <script type = "module" src='scripts/graph_lib.js'></script>
+    <script>
+    function showGraphButton() {
+      // collect language choice
+      var generator;
+      const selector = document.getElementById("language_selector");
+      const idx = selector.selectedIndex;
+      const builtInLangs = 10;
+      if (idx <= builtInLangs - 1) {
+        const perm_check = document.getElementById("permutations_check");
+        generator = selectGenerator("native_lang", [selector.value, perm_check.checked]);
+      } else if (idx == builtInLangs) {
+        var n_input = document.getElementById("n");
+        const n_value = Math.min(9, Math.max(1, n_input.value));
+        n_input.value = n_value;
+        generator = selectGenerator("permutation_generator", [n_value]);
+      } else if (idx == builtInLangs + 1) {
+        var n_input = document.getElementById("n");
+        const n_value = Math.min(7, Math.max(1, n_input.value));
+        n_input.value = n_value;
+        generator = selectGenerator("exhaustive_generator", [n_value]);
+      } else if (idx == builtInLangs + 2) {
+        // use custom file, assert the language has been chosen.
+      }
+
+      const graph_data = getGraphs(generator);
+      const options = {
+        type: document.getElementById("word_class_select").value,
+        graph: document.getElementById("graph_selector").value,
+        logarithm: document.getElementById("log").checked,
+      }
+
+      showGraphs(graph_data, options, "graph1_div", "graph2_div");
+    };
+
+    function languageSelected() {
+      var perm_choice = document.getElementById("permutation_choice");
+      var n_choice = document.getElementById("n_choice");
+      var dict_choice = document.getElementById("dictionary_choice");
+
+      const selector = document.getElementById("language_selector");
+      const idx = selector.selectedIndex;
+      if (idx <= 9) { // built in dictionaries
+        perm_choice.style.display = "flex";
+        n_choice.style.display = "none";
+        dict_choice.style.display = "none";
+      } else if (idx <= 11) { // generators with n as an argument
+        perm_choice.style.display = "none";
+        n_choice.style.display = "flex";
+        dict_choice.style.display = "none";
+      } else if (idx <= 12) { // load local dictionary file
+        perm_choice.style.display = "flex";
+        n_choice.style.display = "none";
+        dict_choice.style.display = "flex";
+      }
+    };
+
+    function graphSelected() {
+      var class_selector = document.getElementById("word_class_select");
+      while (class_selector.options.length > 0) {
+        class_selector.remove(0);
+      }
+
+      const selector = document.getElementById("graph_selector");
+      let flat = new Option('Flattened','flat');
+      let nflat = new Option("Non-flattened", "nflat");
+      class_selector.add(flat, undefined);
+      class_selector.add(nflat, undefined);
+      if (selector.value === "2d") { // selected 2d histograms, can choose stacked
+        let all = new Option("All (Stacked)", "all");
+        class_selector.add(all, undefined);
+      }
+    }
+    </script>
     <meta property="og:title" content="Perfect Fragrant Locust" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta charset="utf-8" />
@@ -57,6 +135,28 @@
         <div class="home-container2">
           <div class="home-container3">
             <div class="home-container4">
+              <span>Choose language source</span>
+              <select id="language_selector" onchange="languageSelected()">
+                <option value="english3">English</option>
+                <option value="dansk">Danish</option>
+                <option value="deustch">German</option>
+                <option value="espanol">Spanish</option>
+                <option value="francais">Spanish</option>
+                <option value="italiano">Italian</option>
+                <option value="nederlands3">Dutch</option>
+                <option value="norsk">Norwegian</option>
+                <option value="swiss">Swiss</option>
+                <option value="usa2">English (USA)</option>
+                <option value="perms">Permutations (size<=n)</option>
+                <option value="exhaustive">Exhaustive (size<=n)</option>
+                <option value="custom">Upload a dictionary</option>
+              </select>
+            </div>
+            <div class="home-container7" id="n_choice" style="display: none">
+              <span>n =</span>
+              <input type='number' inputmode="numeric" value="1" min="1" max="10" id="n">
+            </div>
+            <div id="dictionary_choice" class="home-container4" style="display: none">
               <button id="file_upload_btn" class="home-button button">
                 Choose Dictionary
               </button>
@@ -64,38 +164,38 @@
                 No file selected
               </span>
             </div>
-            <div class="home-container5">
-              <span class="home-text2">Word Class</span>
-              <select id="word_class_select">
-                <option value="flattened">Flattened</option>
-                <option value="nonflattened">Non-flattened</option>
-                <option value="all_separate">All (side by side)</option>
-                <option value="all_stacked">All (Stacked)</option>
-              </select>
+            <div class="home-container7" id="permutation_choice">
+              <span>Permutations only</span>
+              <input type="checkbox" id="permutations_check"/>
             </div>
             <div class="home-container6">
               <span>Graph Type</span>
-              <select>
-                <option value="3d" selected="">3D Histogram</option>
-                <option value="3dline">3D Ribbon</option>
-                <option value="2dr">2D Histogram by Runs</option>
-                <option value="2dl">2D Histogram by Length</option>
-                <option value="3dfr">3D Flattened By Runs</option>
-                <option value="3dfl">3D Flattened By Length</option>
+              <select id="graph_selector" onchange="graphSelected()">
+                <option value="3d">3D Ribbon</option>
+                <option value="2d">2D Histograms</option>
+                <option value="3dflat">3D Flattened</option>
+              </select>
+            </div>
+            <div class="home-container5">
+              <span class="home-text2">Word Class</span>
+              <select id="word_class_select">
+                <option value="flat">Flattened</option>
+                <option value="nonflat">Non-flattened</option>
               </select>
             </div>
             <div class="home-container7">
               <span>Use Logarithm</span>
-              <input type="checkbox" checked="true" />
+              <input type="checkbox" id="log" />
             </div>
-            <button id="create_graph_btn" class="button">
+            <button id="create_graph_btn" class="button" onclick="showGraphButton()">
               <span>
                 <span>Create Graph</span>
                 <br />
               </span>
             </button>
           </div>
-          <div id="graph_div" class="home-container8"></div>
+          <div id="graph1_div" class="home-container8"></div>
+          <div id="graph2_div" class="home-container8"></div>
         </div>
       </div>
     </div>
